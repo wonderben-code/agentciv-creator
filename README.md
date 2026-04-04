@@ -38,4 +38,4 @@ This paper is Bitcoin-timestamped for provenance. The concept was documented bef
 
 ## License
 
-All rights reserved. Mark E. Mala, 2026.
+MIT — see [LICENSE](LICENSE).
