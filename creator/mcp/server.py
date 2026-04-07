@@ -1,16 +1,14 @@
 """Creator Mode MCP server — 7 tools for autonomous organisational architecture.
 
-Phase 1 implements:
-  - creator_info()    — documentation and capabilities
-  - creator_status()  — dashboard and campaign management
-  - creator_knowledge() — query the knowledge store
-
-Remaining tools are wired up in later phases:
-  - creator_explore()         → Phase 2 (planning) + Phase 3 (execution)
-  - creator_spawn_directed()  → Phase 5
-  - creator_spawn_emergent()  → Phase 5
-  - creator_analyze()         → Phase 4
-  - creator_recursive()       → Phase 6
+All tools are live:
+  - creator_info()           — documentation and capabilities
+  - creator_status()         — dashboard and campaign management
+  - creator_knowledge()      — query the knowledge store
+  - creator_explore()        — full autonomous research campaigns
+  - creator_spawn_directed() — run specific engine experiments
+  - creator_spawn_emergent() — generate simulation configs
+  - creator_analyze()        — statistical analysis and finding extraction
+  - creator_recursive()      — evolutionary recursive emergence loop
 """
 
 from __future__ import annotations
@@ -24,6 +22,7 @@ from .. import __version__
 from ..config import ALL_DIMENSIONS, ALL_PRESETS, DIMENSION_VALUES, EMERGENCE_DIMENSIONS
 from ..knowledge.index import SearchIndex
 from ..knowledge.models import (
+    BatchStatus,
     CampaignStatus,
     HypothesisStatus,
 )
@@ -354,48 +353,17 @@ async def _knowledge_recommend(
     agents: int | None,
     priority: str | None,
 ) -> str:
-    """Handle action=recommend.
+    """Handle action=recommend using the recommendation engine."""
+    from ..reporting.designer import recommend_config
 
-    In Phase 1, this returns a basic recommendation based on findings.
-    Phase 5 adds a proper recommendation engine (creator/reporting/designer.py).
-    """
-    findings = store.list_findings()
-
-    if not findings:
-        return json.dumps({
-            "recommendation": None,
-            "confidence": 0.0,
-            "data_quality": "insufficient",
-            "message": "No findings in knowledge store yet. Run a campaign first with creator_explore().",
-        })
-
-    # Filter by task type if provided
-    relevant = findings
-    if task_type:
-        relevant = [f for f in findings if task_type in f.conditions.task_types] or findings
-
-    # Sort by confidence
-    relevant.sort(key=lambda f: f.confidence, reverse=True)
-    best = relevant[0]
-
-    return json.dumps({
-        "recommendation": {
-            "based_on": best.id,
-            "statement": best.statement,
-            "confidence": best.confidence,
-        },
-        "alternatives": [
-            {"id": f.id, "statement": f.statement, "confidence": f.confidence}
-            for f in relevant[1:4]
-        ],
-        "data_quality": (
-            "strong" if len(relevant) >= 10
-            else "good" if len(relevant) >= 5
-            else "limited" if len(relevant) >= 2
-            else "insufficient"
-        ),
-        "message": "Full config recommendations available after Phase 5 (designer.py).",
-    }, indent=2, default=str)
+    result = recommend_config(
+        store=store,
+        search=search,
+        task_type=task_type,
+        agents=agents,
+        priority=priority,
+    )
+    return json.dumps(result, indent=2, default=str)
 
 
 async def _knowledge_coverage(search: SearchIndex) -> str:
@@ -526,7 +494,8 @@ async def creator_spawn_directed(
 ) -> str:
     """Spawn directed experiments via the engine with explicit configurations.
 
-    Use when you know exactly what configs to test.
+    Use when you know exactly what configs to test. Runs experiments immediately
+    and returns results.
 
     Args:
         task: What agents will do.
@@ -538,11 +507,79 @@ async def creator_spawn_directed(
         campaign_id: Attach to existing campaign, or create new.
         project_dir: Working directory.
     """
+    from ..campaign.manager import CampaignManager
+    from ..knowledge.models import RunConfig
+
+    store = _get_store()
+    search = _get_search()
+
+    # Parse configs
+    run_configs = [RunConfig.model_validate(c) for c in configs]
+
+    # Create or get campaign
+    if campaign_id is None:
+        manager = CampaignManager(store, search)
+        presets_str = ", ".join(c.preset for c in run_configs[:3])
+        result = await manager.create_campaign(
+            question=f"Direct experiment: {presets_str}",
+            task=task,
+            strategy="grid",
+            agents=agents,
+            model=model,
+            max_ticks=max_ticks,
+            max_runs=len(run_configs) * runs_per_config,
+            runs_per_config=runs_per_config,
+            focus_presets=[c.preset for c in run_configs],
+        )
+        campaign_id = result["campaign_id"]
+
+    # Run experiments
+    from ..engine.runner import run_batch
+
+    results = await run_batch(
+        configs=run_configs,
+        task=task,
+        agents=agents,
+        model=model,
+        max_ticks=max_ticks,
+        runs_per_config=runs_per_config,
+        project_dir=project_dir,
+    )
+
+    # Save results
+    for r in results:
+        r.campaign_id = campaign_id
+        store.save_run_result(campaign_id, r)
+
+    # Update campaign
+    campaign = store.get_campaign(campaign_id)
+    if campaign:
+        campaign.budget.runs_completed += len(results)
+        campaign.run_ids.extend(r.id for r in results)
+        store.save_campaign(campaign)
+
+    successful = [r for r in results if r.success]
+    failed = [r for r in results if not r.success]
+
     return json.dumps({
-        "status": "not_yet_implemented",
-        "phase": "Phase 5",
-        "message": "creator_spawn_directed() arrives in Phase 5.",
-    })
+        "campaign_id": campaign_id,
+        "runs_completed": len(results),
+        "runs_succeeded": len(successful),
+        "runs_failed": len(failed),
+        "results": [
+            {
+                "id": r.id,
+                "config": r.config.model_dump(),
+                "quality_score": r.quality_score,
+                "merge_conflicts": r.merge_conflicts,
+                "ticks_used": r.ticks_used,
+                "success": r.success,
+                "error": r.error,
+            }
+            for r in results
+        ],
+        "message": f"{len(successful)}/{len(results)} runs completed successfully.",
+    }, indent=2, default=str)
 
 
 @mcp.tool()
@@ -554,28 +591,87 @@ async def creator_spawn_emergent(
     control: bool = True,
     variations: int = 1,
     campaign_id: str | None = None,
-    sim_dir: str = str(None),
+    sim_dir: str | None = None,
 ) -> str:
     """Spawn emergent civilisation simulations.
 
-    Generates simulation config YAMLs and run commands. In v1, simulations
-    are run manually (not autonomously) due to cost and duration.
+    Generates simulation configs and saves them to disk. In v1, simulations
+    are run manually (not autonomously) due to cost and duration. Returns
+    config file paths and run instructions.
 
     Args:
         hypothesis: What emergence pattern to investigate.
         agents: Agent count for simulation.
         ticks: Simulation length.
-        conditions: Specific config overrides for treatment condition.
+        conditions: Specific config overrides for treatment condition (dotted keys).
         control: Also generate a control config (default values).
         variations: Number of treatment variations to generate.
         campaign_id: Attach to existing campaign.
         sim_dir: Path to AgentCiv Simulation repo.
     """
+    from pathlib import Path
+
+    from ..config import DEFAULT_SIM_DIR
+    from ..simulation.config_gen import (
+        generate_experiment_configs,
+        list_conditions,
+        save_sim_configs,
+    )
+
+    store = _get_store()
+    sim_path = Path(sim_dir) if sim_dir else DEFAULT_SIM_DIR
+
+    # Create or use campaign
+    if campaign_id is None:
+        campaign_id = store.next_campaign_id()
+
+    # Generate configs
+    configs = generate_experiment_configs(
+        hypothesis=hypothesis,
+        agents=agents,
+        ticks=ticks,
+        conditions=conditions,
+        control=control,
+        variations=variations,
+    )
+
+    # Save to campaign directory
+    output_dir = store._campaign_dir(campaign_id) / "sim_configs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved_paths = save_sim_configs(configs, output_dir)
+
+    # Build run instructions
+    run_commands = []
+    for path in saved_paths:
+        run_commands.append(
+            f"cd {sim_path} && python -m agentciv.run --config {path}"
+        )
+
     return json.dumps({
-        "status": "not_yet_implemented",
-        "phase": "Phase 5",
-        "message": "creator_spawn_emergent() arrives in Phase 5.",
-    })
+        "campaign_id": campaign_id,
+        "hypothesis": hypothesis,
+        "configs_generated": len(configs),
+        "config_files": saved_paths,
+        "run_instructions": {
+            "note": "Simulations must be run manually in v1 (too expensive for autonomous execution).",
+            "commands": run_commands,
+            "sim_dir": str(sim_path),
+        },
+        "configs_summary": [
+            {
+                "role": c["role"],
+                "label": c["label"],
+                "agents": c["config"]["agents"]["count"],
+                "ticks": c["config"]["simulation"]["max_ticks"],
+            }
+            for c in configs
+        ],
+        "available_conditions": list_conditions(),
+        "message": (
+            f"Generated {len(configs)} simulation configs for: {hypothesis}. "
+            "Run manually using the commands above, then use creator_analyze() on the output."
+        ),
+    }, indent=2, default=str)
 
 
 @mcp.tool()
@@ -585,9 +681,14 @@ async def creator_analyze(
     emergent_data_dirs: list[str] | None = None,
     analysis_type: str = "full",
     metrics: list[str] | None = None,
-    format: str = "full",
+    output_format: str = "full",
+    extract_findings: bool = True,
+    resolve_hypotheses: bool = True,
 ) -> str:
     """Deep cross-run analysis with statistical comparison and finding extraction.
+
+    Analyzes campaign results, computes rankings, effect sizes, p-values,
+    extracts findings, and resolves hypotheses.
 
     Args:
         campaign_id: Analyze a specific campaign.
@@ -595,13 +696,104 @@ async def creator_analyze(
         emergent_data_dirs: Simulation output directories.
         analysis_type: "full", "comparison", "emergence", or "cross_arm".
         metrics: Focus on specific metrics.
-        format: "full" (detailed), "summary" (key findings), "table" (data only).
+        output_format: "full" (detailed), "summary" (key findings), "table" (data only).
+        extract_findings: If True, save significant findings to knowledge store.
+        resolve_hypotheses: If True, update hypothesis statuses based on evidence.
     """
-    return json.dumps({
-        "status": "not_yet_implemented",
-        "phase": "Phase 4",
-        "message": "creator_analyze() arrives in Phase 4.",
-    })
+    from ..analysis.analyzer import (
+        analyze_campaign,
+        extract_and_save_findings,
+        resolve_and_save_hypotheses,
+    )
+
+    store = _get_store()
+
+    # Gather results
+    results: list = []
+    hypotheses = []
+
+    if campaign_id:
+        campaign = store.get_campaign(campaign_id)
+        if campaign is None:
+            return json.dumps({"error": f"Campaign {campaign_id} not found"})
+        results = store.list_run_results(campaign_id)
+        # Load hypotheses for this campaign
+        for h_id in campaign.hypotheses_generated:
+            h = store.get_hypothesis(h_id)
+            if h:
+                hypotheses.append(h)
+    elif directed_results:
+        from ..knowledge.models import RunResult as RR
+        results = [RR.model_validate(r) for r in directed_results]
+
+    if not results:
+        return json.dumps({"error": "No results to analyze. Provide campaign_id or directed_results."})
+
+    # Run analysis
+    analysis = analyze_campaign(
+        results=results,
+        hypotheses=hypotheses,
+        campaign_id=campaign_id or "",
+        metrics=metrics,
+    )
+
+    # Extract and save findings
+    findings_saved = []
+    if extract_findings and campaign_id:
+        campaign = store.get_campaign(campaign_id)
+        task = campaign.constraints.task if campaign else ""
+        agents = campaign.constraints.agents if campaign else 4
+        model = campaign.constraints.model if campaign else ""
+        findings_saved = extract_and_save_findings(
+            analysis, store, campaign_id, task=task, agents=agents, model=model,
+        )
+        # Update campaign with finding IDs
+        if campaign and findings_saved:
+            campaign.findings_generated.extend(f.id for f in findings_saved)
+            store.save_campaign(campaign)
+
+    # Resolve hypotheses
+    hypotheses_updated = []
+    if resolve_hypotheses and analysis.get("hypothesis_verdicts"):
+        hypotheses_updated = resolve_and_save_hypotheses(
+            analysis["hypothesis_verdicts"], store,
+        )
+        # Update campaign with tested hypothesis IDs
+        if campaign_id:
+            campaign = store.get_campaign(campaign_id)
+            if campaign:
+                campaign.hypotheses_tested.extend(h.id for h in hypotheses_updated)
+                store.save_campaign(campaign)
+
+    # Build response based on format
+    if output_format == "summary":
+        response = {
+            "campaign_id": campaign_id,
+            "winner": analysis.get("winner"),
+            "data_quality": analysis.get("data_quality"),
+            "significant_findings": [f.statement for f in findings_saved],
+            "hypothesis_verdicts": [
+                {"id": v["hypothesis_id"], "verdict": v["verdict"]}
+                for v in analysis.get("hypothesis_verdicts", [])
+            ],
+        }
+    elif output_format == "table":
+        response = {
+            "ranking": analysis.get("ranking"),
+            "aggregates": analysis.get("aggregates"),
+        }
+    else:
+        response = analysis
+        response["findings_extracted"] = [
+            {"id": f.id, "statement": f.statement, "confidence": f.confidence}
+            for f in findings_saved
+        ]
+        response["hypotheses_resolved"] = [
+            {"id": h.id, "statement": h.statement, "status": h.status.value}
+            for h in hypotheses_updated
+        ]
+
+    return json.dumps(response, indent=2, default=str)
 
 
 @mcp.tool()
@@ -618,11 +810,15 @@ async def creator_recursive(
     include_emergent: bool = False,
     sim_ticks: int = 100,
     campaign_id: str | None = None,
+    execute: bool = False,
 ) -> str:
     """Run the recursive emergence loop from Paper 7.
 
     Extracts emergent organisational forms → converts to configs → tests them
     → uses best as seeds for next generation. Discovers novel org structures.
+
+    By default, creates the campaign and generation 0 plan. Set execute=True
+    to run all generations immediately (expensive — budget accordingly).
 
     Args:
         seed: Starting config. Preset name, config dict, or "from_simulation:<dir>".
@@ -637,12 +833,133 @@ async def creator_recursive(
         include_emergent: Also spawn simulations for novel org form discovery.
         sim_ticks: Ticks for emergent simulations.
         campaign_id: Attach to existing campaign.
+        execute: If True, run all generations immediately.
     """
-    return json.dumps({
-        "status": "not_yet_implemented",
-        "phase": "Phase 6",
-        "message": "creator_recursive() arrives in Phase 6.",
-    })
+    if not task:
+        return json.dumps({"error": "task parameter is required"})
+
+    from ..campaign.recursive import (
+        advance_generation,
+        create_recursive_campaign,
+    )
+
+    store = _get_store()
+
+    # Create campaign
+    campaign, gen0_configs = create_recursive_campaign(
+        store=store,
+        seed=seed,
+        task=task,
+        generations=generations,
+        population_size=population_size,
+        agents=agents,
+        model=model,
+        max_ticks=max_ticks,
+        runs_per_config=runs_per_config,
+        mutation_rate=mutation_rate,
+        include_emergent=include_emergent,
+    )
+
+    result: dict[str, Any] = {
+        "campaign_id": campaign.id,
+        "type": "recursive",
+        "generations_planned": generations,
+        "population_size": population_size,
+        "mutation_rate": mutation_rate,
+        "generation_0": {
+            "status": "planned",
+            "configs": [c.model_dump() for c in gen0_configs],
+            "total_runs": len(gen0_configs) * runs_per_config,
+        },
+    }
+
+    if execute:
+        from ..engine.runner import run_batch
+
+        all_trajectory = []
+
+        for gen in range(generations):
+            # Get current batch
+            batch = None
+            for b in campaign.batches:
+                if b.status == BatchStatus.PLANNED:
+                    batch = b
+                    break
+            if batch is None:
+                break
+
+            # Run this generation
+            batch.status = BatchStatus.RUNNING
+            campaign.status = CampaignStatus.RUNNING
+            store.save_campaign(campaign)
+
+            gen_results = await run_batch(
+                configs=batch.configs,
+                task=task,
+                agents=agents,
+                model=model,
+                max_ticks=max_ticks,
+                runs_per_config=runs_per_config,
+                project_dir=".",
+            )
+
+            # Save results
+            for r in gen_results:
+                r.campaign_id = campaign.id
+                r.batch_id = batch.id
+                store.save_run_result(campaign.id, r)
+                batch.run_ids.append(r.id)
+                campaign.run_ids.append(r.id)
+
+            campaign.budget.runs_completed += len(gen_results)
+            batch.status = BatchStatus.COMPLETE
+            store.save_campaign(campaign)
+
+            # Advance generation
+            campaign, next_configs = advance_generation(
+                campaign=campaign,
+                generation_results=gen_results,
+                store=store,
+                mutation_rate=mutation_rate,
+                population_size=population_size,
+                include_emergent=include_emergent,
+            )
+
+            successful = [r for r in gen_results if r.success]
+            gen_summary = {
+                "generation": gen,
+                "runs": len(gen_results),
+                "succeeded": len(successful),
+                "configs": [c.model_dump() for c in batch.configs],
+            }
+            if campaign.evolution_trajectory:
+                gen_summary["best"] = campaign.evolution_trajectory[-1]
+            all_trajectory.append(gen_summary)
+
+            if next_configs is None:
+                break
+
+        result["execution"] = {
+            "status": "complete",
+            "generations_completed": campaign.generations_completed,
+            "evolution_trajectory": all_trajectory,
+            "final_trajectory": campaign.evolution_trajectory,
+        }
+
+        # Complete campaign
+        from ..campaign.manager import CampaignManager
+        manager = CampaignManager(store, _get_search())
+        completion = manager.complete_campaign(campaign.id)
+        result["completion"] = completion
+
+    result["message"] = (
+        f"Recursive campaign {campaign.id}: {generations} generations × "
+        f"{population_size} configs × {runs_per_config} runs/config = "
+        f"{generations * population_size * runs_per_config} total budget. "
+        + ("Execution complete." if execute else "Plan ready. Set execute=True to run.")
+    )
+
+    return json.dumps(result, indent=2, default=str)
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
