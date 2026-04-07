@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=70.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentciv-creator"
+version = "0.1.0"
+description = "Autonomous organisational architect for multi-agent AI systems"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Mark E. Mala" }]
+keywords = [
+    "multi-agent",
+    "ai",
+    "organisational-design",
+    "collective-intelligence",
+    "meta-agent",
+    "mcp",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "mcp>=1.0.0",
+    "anthropic>=0.40.0",
+    "agentciv-engine",
+]
+
+[project.urls]
+Homepage = "https://github.com/wonderben-code/agentciv-creator"
+Repository = "https://github.com/wonderben-code/agentciv-creator"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["creator*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
