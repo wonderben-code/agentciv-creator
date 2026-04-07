@@ -453,11 +453,15 @@ async def creator_explore(
     focus_presets: list[str] | None = None,
     focus_dimensions: list[str] | None = None,
     project_dir: str = ".",
+    execute: bool = False,
 ) -> str:
     """Start a full autonomous research campaign.
 
     Designs experiments, runs them, analyzes results, generates new hypotheses,
     and iterates until convergence or budget exhaustion.
+
+    By default, returns the plan without executing. Set execute=True to run
+    experiments immediately.
 
     Args:
         question: The research question. E.g. "What org works best for code review?"
@@ -472,20 +476,41 @@ async def creator_explore(
         focus_presets: Only test these presets (optional).
         focus_dimensions: Only vary these dimensions (optional).
         project_dir: Working directory for engine experiments.
+        execute: If True, run experiments immediately after planning.
     """
-    # Phase 2+3 — campaign planning and execution
-    return json.dumps({
-        "status": "not_yet_implemented",
-        "phase": "Phase 2 (planning) + Phase 3 (execution)",
-        "message": (
-            "creator_explore() is not yet implemented. "
-            "Phase 1 provides the knowledge store and status tools. "
-            "Campaign planning and execution arrive in Phase 2-3."
-        ),
-        "question": question,
-        "task": task,
-        "strategy": strategy,
-    })
+    from ..campaign.manager import CampaignManager
+
+    store = _get_store()
+    search = _get_search()
+    manager = CampaignManager(store, search)
+
+    # Phase 1: Create campaign and generate plan
+    result = await manager.create_campaign(
+        question=question,
+        task=task,
+        arm=arm,
+        strategy=strategy,
+        agents=agents,
+        model=model,
+        max_ticks=max_ticks,
+        max_runs=max_runs,
+        runs_per_config=runs_per_config,
+        focus_presets=focus_presets,
+        focus_dimensions=focus_dimensions,
+    )
+
+    # Phase 2: Execute if requested
+    if execute and arm == "directed":
+        campaign_id = result["campaign_id"]
+        exec_result = await manager.run_campaign(campaign_id, project_dir=project_dir)
+        result["execution"] = exec_result
+
+        # Auto-complete if batch finished
+        if exec_result.get("status") == "batch_complete":
+            completion = manager.complete_campaign(campaign_id)
+            result["completion"] = completion
+
+    return json.dumps(result, indent=2, default=str)
 
 
 @mcp.tool()
