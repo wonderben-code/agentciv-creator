@@ -96,10 +96,13 @@ async def generate_hypotheses(
     max_ticks: int,
     store: KnowledgeStore,
     search: SearchIndex,
+    session_manager: Any = None,
+    campaign_id: str = "",
 ) -> list[Hypothesis]:
     """Use LLM to generate testable hypotheses from a research question.
 
     Falls back to heuristic hypotheses if the API call fails.
+    If session_manager is provided, captures raw LLM request/response.
     """
     # Gather existing knowledge context
     existing = search.query_findings(question, max_results=5)
@@ -134,16 +137,43 @@ async def generate_hypotheses(
     )
 
     try:
+        import time as _time
+
         import anthropic
         client = anthropic.AsyncAnthropic()
+        t0 = _time.monotonic()
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2048,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
+        duration_ms = (_time.monotonic() - t0) * 1000
 
         raw = response.content[0].text.strip()
+
+        # Capture raw LLM interaction if session is active
+        if session_manager is not None:
+            input_tok = getattr(response.usage, "input_tokens", 0)
+            output_tok = getattr(response.usage, "output_tokens", 0)
+            session_manager.capture_llm(
+                purpose="hypothesis_generation",
+                model="claude-sonnet-4-6",
+                system_prompt=system,
+                user_prompt=user,
+                raw_response=raw,
+                input_tokens=input_tok,
+                output_tokens=output_tok,
+                duration_ms=duration_ms,
+                campaign_id=campaign_id,
+            )
+            session_manager.track_cost(
+                source="hypothesis_engine",
+                campaign_id=campaign_id,
+                input_tokens=input_tok,
+                output_tokens=output_tok,
+            )
+
         # Handle markdown code fences
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()

@@ -135,10 +135,12 @@ class CampaignManager:
         self,
         campaign_id: str,
         project_dir: str = ".",
+        session_manager: object | None = None,
     ) -> dict[str, Any]:
         """Execute the planned batch of experiments.
 
         Uses the engine runner to run experiments in parallel.
+        If session_manager is provided, tracks costs and archives chronicles.
         Returns results summary.
         """
         campaign = self._store.get_campaign(campaign_id)
@@ -175,6 +177,8 @@ class CampaignManager:
                 max_ticks=campaign.constraints.max_ticks,
                 runs_per_config=batch.runs_per_config,
                 project_dir=project_dir,
+                session_manager=session_manager,
+                campaign_id=campaign_id,
             )
 
             # Save individual run results

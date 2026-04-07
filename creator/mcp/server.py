@@ -44,6 +44,7 @@ mcp = FastMCP(
 
 _store: KnowledgeStore | None = None
 _search: SearchIndex | None = None
+_session_mgr: Any = None  # SessionManager, lazily imported
 
 
 def _get_store() -> KnowledgeStore:
@@ -58,6 +59,15 @@ def _get_search() -> SearchIndex:
     if _search is None:
         _search = SearchIndex(_get_store())
     return _search
+
+
+def _get_session_manager():
+    """Get or create the session manager (lazy import to avoid circular deps)."""
+    global _session_mgr
+    if _session_mgr is None:
+        from ..dogfood.session import SessionManager
+        _session_mgr = SessionManager(_get_store())
+    return _session_mgr
 
 
 # ── Tool: creator_info ───────────────────────────────────────────────────────
@@ -450,6 +460,7 @@ async def creator_explore(
 
     store = _get_store()
     search = _get_search()
+    sm = _get_session_manager()
     manager = CampaignManager(store, search)
 
     # Phase 1: Create campaign and generate plan
@@ -467,10 +478,27 @@ async def creator_explore(
         focus_dimensions=focus_dimensions,
     )
 
+    # Register campaign with dogfood session if active
+    campaign_id_for_session = result["campaign_id"]
+    if sm.get_active():
+        sm.register_campaign(campaign_id_for_session)
+        sm.log("campaign_created", {
+            "question": question,
+            "task": task,
+            "strategy": strategy,
+            "agents": agents,
+            "model": model,
+            "max_runs": max_runs,
+        }, campaign_id=campaign_id_for_session)
+
     # Phase 2: Execute if requested
     if execute and arm == "directed":
         campaign_id = result["campaign_id"]
-        exec_result = await manager.run_campaign(campaign_id, project_dir=project_dir)
+        exec_result = await manager.run_campaign(
+            campaign_id,
+            project_dir=project_dir,
+            session_manager=sm.get_active() and sm or None,
+        )
         result["execution"] = exec_result
 
         # Auto-complete if batch finished
@@ -1000,6 +1028,131 @@ async def creator_recursive(
     )
 
     return json.dumps(result, indent=2, default=str)
+
+
+# ── Tool: creator_dogfood ────────────────────────────────────────────────────
+
+@mcp.tool()
+async def creator_dogfood(
+    action: str = "status",
+    name: str = "",
+    description: str = "",
+    model: str = "claude-sonnet-4-6",
+    notes: str = "",
+    session_id: str | None = None,
+) -> str:
+    """Manage dogfood testing sessions — comprehensive data capture for paper updates.
+
+    Captures environment snapshots, cost tracking, raw LLM responses, chronicles,
+    and produces exportable datasets. Start a session before running campaigns
+    to ensure complete data capture.
+
+    Args:
+        action: "start", "status", "complete", "export", "list".
+        name: Session name (for action="start").
+        description: What this session is testing (for action="start").
+        model: Default model (for action="start").
+        notes: Final notes (for action="complete").
+        session_id: Specific session (for action="export" or "complete").
+    """
+    sm = _get_session_manager()
+
+    if action == "start":
+        if not name:
+            return json.dumps({"error": "name is required for action='start'"})
+        session = sm.start_session(name=name, description=description, model=model)
+        return json.dumps({
+            "session_id": session.id,
+            "name": session.name,
+            "started": session.started.isoformat(),
+            "environment": session.environment.model_dump(mode="json"),
+            "message": (
+                f"Dogfood session {session.id} started. "
+                "All campaigns run during this session will be tracked with full data capture. "
+                "Use creator_explore/creator_spawn_directed as normal."
+            ),
+        }, indent=2, default=str)
+
+    elif action == "status":
+        active = sm.get_active()
+        if active is None:
+            sessions = sm.list_sessions()
+            return json.dumps({
+                "active_session": None,
+                "total_sessions": len(sessions),
+                "sessions": [
+                    {
+                        "id": s.id, "name": s.name,
+                        "campaigns": len(s.campaign_ids),
+                        "cost_usd": round(s.total_cost_usd, 4),
+                        "completed": s.completed is not None,
+                    }
+                    for s in sessions
+                ],
+                "message": "No active session. Use action='start' to begin one.",
+            }, indent=2, default=str)
+
+        return json.dumps({
+            "session_id": active.id,
+            "name": active.name,
+            "started": active.started.isoformat(),
+            "campaigns": active.campaign_ids,
+            "total_cost_usd": round(active.total_cost_usd, 4),
+            "journal_entries": len(active.journal),
+            "llm_captures": len(active.llm_captures),
+            "cost_entries": len(active.costs),
+        }, indent=2, default=str)
+
+    elif action == "complete":
+        sid = session_id or (sm.get_active().id if sm.get_active() else None)
+        if sid is None:
+            return json.dumps({"error": "No active session to complete"})
+        session = sm.complete_session(notes=notes)
+        if session is None:
+            return json.dumps({"error": "Failed to complete session"})
+
+        # Auto-export
+        export_path = sm.export_to_file(sid)
+
+        return json.dumps({
+            "session_id": session.id,
+            "completed": session.completed.isoformat() if session.completed else None,
+            "total_campaigns": len(session.campaign_ids),
+            "total_cost_usd": round(session.total_cost_usd, 4),
+            "total_runs_tracked": len(session.costs),
+            "export_path": str(export_path),
+            "message": f"Session {session.id} completed. Dataset exported to {export_path}",
+        }, indent=2, default=str)
+
+    elif action == "export":
+        sid = session_id or (sm.get_active().id if sm.get_active() else None)
+        if sid is None:
+            return json.dumps({"error": "No session specified"})
+        export_path = sm.export_to_file(sid)
+        return json.dumps({
+            "export_path": str(export_path),
+            "message": f"Dataset exported to {export_path}",
+        }, indent=2, default=str)
+
+    elif action == "list":
+        sessions = sm.list_sessions()
+        return json.dumps({
+            "sessions": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                    "started": s.started.isoformat(),
+                    "completed": s.completed.isoformat() if s.completed else None,
+                    "campaigns": len(s.campaign_ids),
+                    "cost_usd": round(s.total_cost_usd, 4),
+                }
+                for s in sessions
+            ],
+        }, indent=2, default=str)
+
+    else:
+        return json.dumps({"error": f"Unknown action: {action}. Use: start, status, complete, export, list"})
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────

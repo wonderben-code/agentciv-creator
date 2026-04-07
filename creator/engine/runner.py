@@ -198,14 +198,16 @@ async def run_batch(
     max_ticks: int,
     runs_per_config: int,
     project_dir: str = ".",
+    session_manager: object | None = None,
+    campaign_id: str = "",
 ) -> list[RunResult]:
     """Run a batch of experiments with bounded parallelism.
 
     Creates runs_per_config copies of each config and executes them.
     Returns all RunResults (both successful and failed).
+    If session_manager is provided, tracks costs and archives chronicles.
     """
     semaphore = asyncio.Semaphore(MAX_PARALLEL)
-    results: list[RunResult] = []
 
     async def _bounded_run(cfg: RunConfig, run_idx: int, global_idx: int) -> RunResult:
         async with semaphore:
@@ -214,7 +216,7 @@ async def run_batch(
                 "Running experiment %s: preset=%s, overrides=%s (run %d/%d)",
                 run_id, cfg.preset, cfg.overrides, run_idx + 1, runs_per_config,
             )
-            return await run_single_experiment(
+            result = await run_single_experiment(
                 config=cfg,
                 task=task,
                 agents=agents,
@@ -224,6 +226,34 @@ async def run_batch(
                 run_id=run_id,
                 run_index=run_idx,
             )
+
+            # Session tracking: cost + chronicle archival
+            if session_manager is not None:
+                sm = session_manager  # type: ignore[union-attr]
+                if result.total_tokens > 0:
+                    sm.track_cost(
+                        source="engine_run",
+                        campaign_id=campaign_id,
+                        run_id=run_id,
+                        total_tokens=result.total_tokens,
+                    )
+                if result.chronicle_report:
+                    sm.archive_chronicle(campaign_id, run_id, result.chronicle_report)
+                sm.log(
+                    "run_completed",
+                    {
+                        "run_id": run_id,
+                        "preset": cfg.preset,
+                        "overrides": cfg.overrides,
+                        "success": result.success,
+                        "quality_score": result.quality_score,
+                        "tokens": result.total_tokens,
+                        "wall_time": result.wall_time_seconds,
+                    },
+                    campaign_id=campaign_id,
+                )
+
+            return result
 
     # Build task list
     tasks = []
