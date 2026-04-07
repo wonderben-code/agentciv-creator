@@ -478,6 +478,46 @@ async def creator_explore(
             completion = manager.complete_campaign(campaign_id)
             result["completion"] = completion
 
+            # Auto-analyze and extract findings
+            from ..analysis.analyzer import (
+                analyze_campaign as _analyze,
+                extract_and_save_findings,
+                resolve_and_save_hypotheses,
+            )
+
+            all_results = store.list_run_results(campaign_id)
+            campaign = store.get_campaign(campaign_id)
+            hypotheses = []
+            if campaign:
+                for h_id in campaign.hypotheses_generated:
+                    h = store.get_hypothesis(h_id)
+                    if h:
+                        hypotheses.append(h)
+
+            analysis = _analyze(all_results, hypotheses=hypotheses, campaign_id=campaign_id)
+            findings_saved = extract_and_save_findings(
+                analysis, store, campaign_id,
+                task=task, agents=agents, model=model,
+            )
+            if analysis.get("hypothesis_verdicts"):
+                resolve_and_save_hypotheses(analysis["hypothesis_verdicts"], store)
+
+            # Update campaign with findings
+            if campaign and findings_saved:
+                campaign.findings_generated.extend(f.id for f in findings_saved)
+                store.save_campaign(campaign)
+
+            result["analysis"] = {
+                "findings_extracted": len(findings_saved),
+                "winner": analysis.get("winner"),
+                "data_quality": analysis.get("data_quality"),
+            }
+
+            # Auto-generate report
+            from ..reporting.report_generator import generate_campaign_report
+            generate_campaign_report(campaign_id, store, search)
+            result["report"] = f"Campaign report saved to ~/.agentciv-creator/campaigns/{campaign_id}/report.md"
+
     return json.dumps(result, indent=2, default=str)
 
 
