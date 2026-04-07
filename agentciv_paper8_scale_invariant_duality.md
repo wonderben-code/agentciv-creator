@@ -180,6 +180,8 @@ If the directed-emergent duality is intrinsic to collective intelligence — not
 
 **Collective intelligence has a property that individual intelligence may not share in the same structural form.** Individual cognition does exhibit something analogous to the duality — intentional problem-solving alongside unexpected creative leaps, unconscious recombination, and insights that arrive without deliberate effort. However, in individual cognition, both modes are subprocesses within a single cognitive system — the same agent's own neural dynamics producing both directed and undirected output. In collective intelligence, the emergent mode arises from the structural interaction between independent entities with separate knowledge, separate perspectives, and separate reasoning. The emergence is not one agent surprising itself. It is the interaction between agents producing something none of them individually conceived. If this structural distinction holds — if collective emergence is different in kind from individual creativity, not just in degree — then the duality as observed in CMI may be a signature of what makes collective intelligence a distinct phenomenon rather than just "more intelligence." This distinction itself warrants further investigation.
 
+However, this very observation may strengthen rather than limit the scale-invariance claim. A single mind — biological or artificial — is not a monolithic system. A brain is a collective of billions of neurons, competing subsystems, parallel processes. Minsky (1986) described cognition as a "society of mind" — agents within agents, each contributing to a collective dynamic that no single component directs. If the directed-emergent duality appears within a single intelligence *because* a single intelligence is itself a collective at a different scale, then the duality persists not only across levels of collective organisation (object, meta, meta-meta) but across the individual-collective boundary itself. The boundary between "one intelligence" and "a collective of intelligences" is scale-relative — a function of where the observer draws the line. The duality does not respect that line. It appears on both sides. This is the strongest form of scale invariance: a property that persists regardless of the observation scale, including across the very distinction between individual and collective.
+
 ### 6.2 If the Duality Is an Artefact
 
 If the duality is a design artefact — a reflection of how we built the framework rather than a property of the phenomenon — this is also informative. It would mean our categorical instincts (dividing things into directed and emergent) are strong enough to impose themselves on every level of a framework. Understanding why we default to this categorisation, and whether alternative categorisations would reveal different patterns, would itself be a contribution to the epistemology of collective intelligence research.
@@ -293,6 +295,8 @@ Mala, M. E. (2026f). Configuration Variance in Collective Machine Intelligence: 
 Mala, M. E. (2026g). Recursive Emergence: Self-Propagating Organisational Evolution Through Civilisational Generation. AgentCiv.ai.
 
 Mandelbrot, B. B. (1982). *The Fractal Geometry of Nature.* W. H. Freeman.
+
+Minsky, M. (1986). *The Society of Mind.* Simon & Schuster.
 
 West, G. B., Brown, J. H., & Enquist, B. J. (1997). A General Model for the Origin of Allometric Scaling Laws in Biology. *Science*, 276(5309), 122-126.
 
