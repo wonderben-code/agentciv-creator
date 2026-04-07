@@ -189,139 +189,160 @@ All emergent properties of every civilisation and all problems solved by every c
 
 ### 5.1 Overview
 
-The v1 Creator is a single AI agent with access to both the AgentCiv Engine and the AgentCiv Simulation as tools. It receives a goal, designs civilisations, spawns them, analyses the results, and iterates.
+The v1 Creator is implemented as an **MCP (Model Context Protocol) server** — 8 tools that any MCP-compatible LLM client (Claude Code, Cursor, or any future client) can invoke. The human's LLM becomes the meta-agent: it receives a goal, calls Creator tools to design civilisations, spawn them through the AgentCiv Engine, analyse the results with built-in statistical methods, and iterate. The system is ~5,300 lines of Python across 22 source files, with 105 tests.
 
 ```
-                          ┌────────────────────────────┐
-                          │       CREATOR MODE v1       │
-                          │      (Meta-Agent / LLM)     │
-                          │                            │
-                          │  • Receives goal            │
-                          │  • Designs configuration    │
-                          │  • Analyses results         │
-                          │  • Decides next experiment  │
-                          └─────────────┬──────────────┘
-                                        │
-                           ┌────────────┼────────────┐
-                           │            │            │
-                    ┌──────┴──────┐     │     ┌──────┴──────┐
-                    │  DIRECTED   │     │     │  EMERGENT   │
-                    │  (Engine)   │     │     │(Simulation) │
-                    │             │     │     │             │
-                    │ agentciv    │     │     │ agentciv    │
-                    │ solve/      │     │     │ spawn       │
-                    │ experiment  │     │     │ (future)    │
-                    └──────┬──────┘     │     └──────┬──────┘
-                           │            │            │
-                    ┌──────┴──────┐     │     ┌──────┴──────┐
-                    │  Chronicle  │     │     │  Chronicle  │
-                    │  (JSON)     │     │     │  (JSON)     │
-                    └──────┬──────┘     │     └──────┬──────┘
-                           │            │            │
-                           └────────────┼────────────┘
-                                        │
-                          ┌─────────────┴──────────────┐
-                          │     ANALYSIS & LEARNING     │
-                          │                            │
-                          │  • Compare outcomes         │
-                          │  • Identify patterns        │
-                          │  • Update possibility map   │
-                          │  • Design next generation   │
-                          └─────────────┬──────────────┘
-                                        │
-                                   Next Generation
-                                    (loop back)
+                    ┌──────────────────────────────────┐
+                    │         LLM CLIENT (Claude)       │
+                    │                                  │
+                    │   "Find the best org for REST    │
+                    │    API development with 4 agents" │
+                    └───────────────┬──────────────────┘
+                                    │ MCP Protocol
+                    ┌───────────────┴──────────────────┐
+                    │       CREATOR MODE v1 (MCP)       │
+                    │         8 Tools Available          │
+                    ├───────────────────────────────────┤
+                    │                                   │
+                    │  creator_explore    — Full pipeline│
+                    │  creator_spawn_directed — Engine   │
+                    │  creator_spawn_emergent — Sim      │
+                    │  creator_analyze   — Statistics    │
+                    │  creator_recursive — Evo loop      │
+                    │  creator_knowledge — Cumulative    │
+                    │  creator_hypothesize — LLM hyp.   │
+                    │  creator_status    — Campaigns     │
+                    │                                   │
+                    ├──────────┬────────────┬───────────┤
+                    │ Campaign │  Engine    │ Analysis  │
+                    │ Manager  │  Runner    │  Engine   │
+                    │          │            │           │
+                    │ Planner  │ Sim Config │ Recursive │
+                    │          │  Generator │   Loop    │
+                    ├──────────┴────────────┴───────────┤
+                    │                                   │
+                    │          Knowledge Store           │
+                    │   (~/.agentciv-creator/)           │
+                    │                                   │
+                    │  campaigns/ findings/ hypotheses/  │
+                    │  run_results/ index/               │
+                    └───────────────────────────────────┘
 ```
 
-### 5.2 Components
+### 5.2 Components (As Built)
 
-**The Meta-Agent.** A frontier LLM (Claude Opus, GPT-4o, or equivalent) with a system prompt instructing it to systematically explore the configuration space. It reasons in natural language about what to try, why, and what it expects. It has access to all chronicle data from previous runs.
+**Campaign Manager** (`creator/campaign/manager.py`). Lifecycle management for experimental campaigns. Creates campaigns from questions, manages batches, tracks budget (runs completed vs. max runs), and transitions campaign status through PLANNING → RUNNING → ANALYZING → COMPLETE. Each campaign is a self-contained experimental programme with a question, constraints, strategy, and accumulated results.
 
-**Directed Spawner.** Calls the AgentCiv Engine programmatically:
-```
-agentciv solve --task "..." --org <config> --agents N --max-ticks T
-agentciv experiment --task "..." --orgs <configs> --runs N
-```
-Captures chronicle output (JSON): per-agent contributions, communication patterns, test results, organisational dynamics.
+**Campaign Planner & Hypothesis Engine** (`creator/campaign/planner.py`). Two paths to experiment design. The **hypothesis engine** calls Claude Sonnet via the Anthropic API to generate testable hypotheses from a research question — each with a formal test design (independent variable, treatment, control, outcome metric, expected direction). Falls back to **heuristic generation** when no API key is available, producing hypotheses from known patterns (e.g., "auto mode outperforms X on quality"). Four search strategies generate experiment configurations: **grid** (all 13 presets), **sweep** (one dimension varied across all values), **hypothesis-driven** (configs derived from hypothesis test designs), and **knowledge-gap** (targets untested regions of the space).
 
-**Emergent Spawner.** Calls the AgentCiv Simulation (or future `agentciv spawn`):
-```
-agentciv spawn --agents N --world-size WxH --drives maslow \
-  --environment moderate --ticks T
-```
-Captures simulation chronicle: innovations, governance events, social structures, agent interactions.
+**Engine Runner** (`creator/engine/runner.py`). Executes experiments through the AgentCiv Engine Python API (`EngineConfig.from_preset()`, `Engine.run()`, `chronicle.generate_report()`). Bounded parallelism via semaphore (max 3 concurrent runs). Each run captures: quality score, merge conflicts, ticks used, token counts, wall time, files produced, and the full chronicle. Failed runs are recorded with error details — nothing is discarded.
 
-**Analysis Pipeline.** Structured comparison of outcomes across runs. Pattern recognition. Novelty detection. The meta-agent reads all chronicle data and reasons about what worked, what was surprising, and what to explore next.
+**Statistical Analysis Engine** (`creator/analysis/analyzer.py`, 705 lines). Pure-Python statistical analysis — no NumPy or SciPy dependency. Implements:
+- **Welch's t-test** from first principles, with p-values computed via the regularised incomplete beta function (Lentz's continued fraction algorithm)
+- **Cohen's d** effect sizes for practical significance
+- **Aggregate-by-config** grouping with mean/std/min/max for all metrics
+- **Pairwise comparison** across 7 metrics (quality, conflicts, ticks, tokens, messages, wall time, files)
+- **Automatic finding extraction** — statistically significant results (p < 0.05) become persisted Finding objects
+- **Hypothesis resolution** — test designs are evaluated against data and verdicts (supported/refuted/inconclusive) are assigned
 
-**Knowledge Store.** Accumulated data from all runs, persisted to disk (`~/.agentciv/creator_history.jsonl`). Each entry: configuration, goal, outcomes, the meta-agent's analysis, and what it decided to try next. This is the Creator's memory.
+**Recursive Emergence Loop** (`creator/campaign/recursive.py`). Implements Paper 7's evolutionary search mechanism. A population of configurations evolves across generations through **mutation** (random dimension changes), **crossover** (combining dimensions from two parents), and **emergent form extraction** (capturing organisational structures that auto-mode agents designed for themselves). Selection is fitness-proportionate on quality score. Each generation: run all configs → select top K → evolve next population → repeat. The loop can discover configurations that outperform all 13 named presets.
 
-**Budget Manager.** Token/compute limits per exploration session. Convergence detection — stop when improvement plateaus or novelty drops below threshold.
+**Simulation Config Generator** (`creator/simulation/config_gen.py`). Generates complete simulation configurations for emergent-arm experiments. 10 named condition templates (resource scarcity/abundance, communication limited/global, large/small world, high social drive, high curiosity, no governance, no building) that can be composed and perturbed. Supports dotted-key overrides for fine-grained control.
 
-### 5.3 CLI Interface
+**Knowledge Store** (`creator/knowledge/store.py`). Persistent CRUD storage on disk at `~/.agentciv-creator/`. Atomic writes (temp file → rename) prevent corruption. Stores campaigns, run results, hypotheses, findings, and search indices as JSON. The store is the Creator's cumulative memory — every experiment's results persist and inform future decisions.
 
-```bash
-# Directed: find the best org for a task type
-agentciv creator --mode directed \
-  --task "Build a REST API with authentication" \
-  --budget 20  # max 20 civilisation runs
+**Search Index** (`creator/knowledge/index.py`). Queryable index over the knowledge store. Computes coverage (which presets tested, which dimensions varied), identifies gaps, and suggests next experiments. Powers the knowledge-gap search strategy.
 
-# Emergent: explore the emergence space
-agentciv creator --mode emergent \
-  --focus "governance formation conditions" \
-  --budget 50
+**Recommendation Engine** (`creator/reporting/designer.py`). Data-driven configuration recommendations from accumulated evidence. Priority-weighted scoring: quality (pure quality), speed (0.5 quality + 0.5 speed), creativity (0.7 quality + 0.3 low-conflicts), balanced (0.6/0.2/0.2). Returns recommendations with full justification from evidence.
 
-# Hybrid: explore both simultaneously
-agentciv creator --mode hybrid \
-  --task "Build a microservices architecture" \
-  --budget 30
+**Report Generator** (`creator/reporting/report_generator.py`). Produces 8-section markdown campaign reports: header, executive summary, methodology, results ranking table, findings with statistical significance markers, hypothesis verdicts, recommendations with next steps, and coverage analysis. Auto-saved to the campaign directory.
 
-# Open exploration: no specific goal
-agentciv creator --mode explore \
-  --budget 100
+### 5.3 MCP Tool Interface
 
-# View what Creator has learned
-agentciv creator --history
-agentciv creator --discoveries
-agentciv creator --recommendations --task "..."
-```
-
-### 5.4 A Primitive Run (Hypothetical)
+The Creator exposes 8 tools via MCP. Any MCP-compatible client can invoke them:
 
 ```
-Creator Mode v1 — Directed Search
-Goal: Find optimal org config for "Build a key-value store with persistence"
-Budget: 15 runs
+creator_explore
+  question: "Which org structure produces the best REST APIs?"
+  strategy: "grid"          # grid | sweep | hypothesis | knowledge
+  agents: 4
+  model: "claude-sonnet-4-6"
+  task: "Build a REST API with authentication and rate limiting"
+  execute: true             # false = plan only
 
-Generation 1 (runs 1-5):
-  Collaborative (3 agents)     → 12 tests pass, 45s
-  Hierarchical (3 agents)      → 8 tests pass, 52s
-  Meritocratic (3 agents)      → 14 tests pass, 61s
-  Auto (3 agents)              → 11 tests pass, 48s
-  Competitive (3 agents)       → 6 tests pass, 38s
+creator_spawn_directed
+  configs: ["auto", "hierarchical", "collaborative"]
+  task: "Build a REST API"
+  runs_per_config: 3
 
-Analysis: Meritocratic wins on quality. Collaborative good balance.
-          Competitive fails — parallel isolation hurts.
-          Hypothesis: peer review matters for data integrity code.
+creator_spawn_emergent
+  conditions: ["resource_scarcity", "communication_limited"]
+  agents: 12
+  ticks: 100
 
-Generation 2 (runs 6-10):
-  Meritocratic (4 agents)      → 18 tests pass, 73s
-  Meritocratic (2 agents)      → 9 tests pass, 42s
-  Code-review (3 agents)       → 16 tests pass, 68s
-  Custom: merit+collab hybrid  → 19 tests pass, 58s  ← NEW BEST
-  Open-source (3 agents)       → 15 tests pass, 65s
+creator_analyze
+  campaign_id: "C001"
+  format: "full"            # full | summary | table
 
-Analysis: Hybrid meritocratic-collaborative outperforms all presets.
-          Key insight: meritocratic authority + collaborative communication.
-          4 agents hits diminishing returns on this task size.
+creator_recursive
+  seed: "auto"
+  task: "Build a REST API"
+  generations: 5
+  population_size: 8
+  execute: true
 
-Generation 3 (runs 11-15):
-  Refining hybrid configs around the discovered sweet spot...
-  Best: merit authority, mesh comms, emergent roles, reputation incentives
-  Result: 21 tests pass, 54s — outperforms all 13 named presets.
+creator_hypothesize
+  question: "Does authority structure affect code quality?"
 
-Recommendation saved: "For data-integrity tasks requiring correctness
-over speed, use meritocratic authority with mesh communication and
-reputation-based incentives. 3 agents optimal for small-medium scope."
+creator_knowledge
+  action: "recommend"       # query | recommend | gaps | summary
+  task_type: "api_dev"
+  priority: "quality"
+
+creator_status
+  campaign_id: "C001"       # optional — omit for all campaigns
+```
+
+### 5.4 A Primitive Run (Actual Pipeline)
+
+```
+User → Claude: "Find the best org for building a REST API with 4 agents"
+
+Claude calls: creator_explore(
+  question="Best org for REST API dev with 4 agents?",
+  strategy="grid",
+  task="Build a REST API with JWT auth and rate limiting",
+  agents=4,
+  execute=true
+)
+
+Campaign C001 created.
+Strategy: grid → 13 presets × 3 runs each = 39 total runs
+Budget: max_runs=39, runs_per_config=3
+
+Batch 1 executing...
+  auto:          quality=[0.85, 0.88, 0.82]  conflicts=[2, 1, 3]
+  collaborative: quality=[0.78, 0.80, 0.79]  conflicts=[3, 4, 2]
+  hierarchical:  quality=[0.65, 0.68, 0.62]  conflicts=[7, 8, 6]
+  competitive:   quality=[0.55, 0.58, 0.50]  conflicts=[31, 28, 35]
+  meritocratic:  quality=[0.72, 0.75, 0.71]  conflicts=[9, 7, 11]
+  ... (8 more presets)
+
+Auto-analysis triggered:
+  Welch's t-test: auto vs competitive → t=8.42, p=0.0003, d=4.2 ***
+  Welch's t-test: auto vs hierarchical → t=5.61, p=0.002, d=2.8 **
+  Finding F001 saved: "Auto mode achieves highest quality (0.85±0.03)
+    with fewest merge conflicts (2.0±1.0), significantly outperforming
+    competitive (p<0.001, d=4.2) and hierarchical (p<0.01, d=2.8)"
+  Hypothesis H001 resolved: SUPPORTED — auto > hierarchical on quality
+
+Campaign report generated → ~/.agentciv-creator/campaigns/C001/report.md
+
+Claude → User: "Auto mode wins decisively. Quality 0.85 with only 2
+  merge conflicts vs competitive's 31. The self-organising team
+  outperformed every human-designed structure. Full report saved.
+  Want me to run a recursive loop to see if evolution finds
+  something even better?"
 ```
 
 ---
