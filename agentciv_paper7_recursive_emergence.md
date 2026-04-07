@@ -392,7 +392,7 @@ Mala, M. E. (2026d). Collective Machine Intelligence: A New Field for the Age of
 
 Mala, M. E. (2026e). Creator Mode: AI as Civilisation Designer. AgentCiv.ai.
 
-Mala, M. E. (2026f). Configuration Variance in Collective Machine Intelligence: An Empirical Benchmark. AgentCiv.ai.
+Mala, M. E. (2026f). Same City, Different Architects: How Organisational Structure Shapes Collective AI Output Quality, Process, and Emergent Behaviour. AgentCiv.ai.
 
 Mala, M. E. (2026h). Scale-Invariant Duality in Collective Machine Intelligence: The Directed-Emergent Distinction as Structural Pattern. AgentCiv.ai.
 
