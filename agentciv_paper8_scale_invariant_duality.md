@@ -29,7 +29,19 @@ At the **meta level** — the level at which collectives themselves are designed
 
 The duality at the meta level was not designed to mirror the duality at the object level. It was discovered. Creator Mode was developed as a mechanism for exploring the configuration space. Recursive emergence was discovered as a structural property of the relationship between civilisations and organisational forms. Only after both existed was the parallel recognised: the same directed-emergent distinction, operating at a different level of abstraction, through different mechanisms, producing different kinds of discoveries.
 
-### 1.2 What This Paper Asks
+### 1.2 What "Scale-Invariant" Means
+
+We use **scale-invariant** in the precise sense established in physics and complex systems theory: a structural property that persists unchanged across scales of observation. In fractal geometry, scale invariance means the same pattern appears at every level of magnification — zoom in on a coastline and the same jagged structure recurs (Mandelbrot, 1982). In critical phenomena, scale invariance means the same statistical distributions hold regardless of the observation scale (Wilson, 1971). The property is not merely present at multiple scales — it is structurally identical at each, arising through different mechanisms at each level but producing the same pattern.
+
+In this paper, the "scale" is the level of abstraction within the CMI framework. Three levels have been examined:
+
+1. **Object level** — the behaviour of agents within a collective (directed task completion + emergent innovation)
+2. **Meta level** — the mechanisms for designing and evolving collectives (Creator Mode + recursive emergence)
+3. **Meta-meta level** — the orchestration of those mechanisms (intentional coordination + structural interaction)
+
+The directed-emergent duality is scale-invariant if it recurs at every such level with the same structural form: an intentional, goal-directed mode coexisting with a structural, undirected mode that produces novelty neither designed nor anticipated. The claim is not merely that "both directed and emergent properties exist" — it is that this specific duality reappears at every level of abstraction examined, through different mechanisms at each level, with the same complementary relationship between the two modes. The pattern is invariant across the scale of abstraction.
+
+### 1.3 What This Paper Asks
 
 When the same structural pattern recurs at every level of a system that has been examined, two possibilities present themselves:
 
@@ -93,6 +105,18 @@ At the object level, every directed civilisation produces emergent output alongs
 At the meta level, the same spectral nature applies. Creator Mode is primarily directed but may produce emergent insights — the Creator discovers something unexpected while searching intentionally. Recursive emergence is primarily structural but may incorporate directed elements — a Creator-designed configuration enters the loop as a starting point. Pure Creator Mode and pure recursive emergence are the poles. Real systems may blend them.
 
 This observation does not weaken the duality — it strengthens the scale-invariance claim. The distinction is not a rigid binary that could be dismissed as an artificial categorisation. It is a spectrum with identifiable poles and a continuous range between them. And that spectral nature itself recurs across levels: a spectrum at the object level, a spectrum at the meta level, and — as we explore in the next section — a spectrum at the meta-meta level. The recurrence of the spectrum, not just the recurrence of the poles, is the self-similar pattern.
+
+### 3.5 The Duality Within Each Tool: Empirical Evidence
+
+The scale-invariance claim gains additional empirical support from an observation across the two implemented systems in the AgentCiv programme. The **AgentCiv Simulation** and the **AgentCiv Engine** were designed with different orientations — the Simulation as the emergent arm (open-ended civilisational dynamics), the Engine as the directed arm (configured teams completing specified tasks). Yet both tools, when used to run experiments, produced collectives exhibiting both directed and emergent properties simultaneously.
+
+**The Simulation** (Mala, 2026c; forthcoming) — designed to produce emergent civilisational dynamics — nevertheless produced directed output within its collectives. Agents built structures to meet specific survival needs, gathered resources for identified purposes, developed innovations with targeted mechanical benefits, and pursued goals they articulated in interviews. The emergence (governance norms, social bonds, collective identity, innovation cascades, accelerating returns) coexisted with directed problem-solving within the same twelve-agent collective.
+
+**The Engine** (Mala, 2026d; 2026f) — designed to configure teams for directed task completion — nevertheless produced emergent output within its collectives. Agents spontaneously invented evaluation tools nobody specified, developed trust relationships that emerged organically from interaction history, created coordination protocols (writer rotation) that no configuration mandated, proposed and voted on structural changes to their own organisation, and in one case collectively abandoned their assigned competitive structure when it proved dysfunctional. The directed task completion (building a city to specification) coexisted with genuine emergence within the same four-agent teams.
+
+This empirical pattern is precisely what the scale-invariance claim predicts. The duality is not a property of the tool used to instantiate a collective — it is a property of the collective itself. Regardless of whether a collective is instantiated through the emergent-oriented Simulation or the directed-oriented Engine, both modes manifest within it. A tool designed for emergence produces collectives that also direct. A tool designed for direction produces collectives that also emerge. The duality is intrinsic to the collective, not imposed by the instrument.
+
+This also clarifies the relationship between tools and levels. At the **tool level**, the Simulation and Engine represent two orientations — emergent and directed respectively. The Simulation optimises conditions for open-ended civilisational dynamics; the Engine optimises conditions for configured task completion. **Creator Mode** operates at the meta level as the directed mechanism for designing and spawning collectives using both tools. **Recursive emergence** operates at the meta level as the emergent mechanism — configurations evolving structurally across generations, with the Engine providing directed team configuration and the Simulation providing emergent civilisational instantiation (Mala, 2026g). But within any collective instantiated by any of these tools, the object-level duality persists. The tools have orientations; the collectives they produce have both modes.
 
 ---
 

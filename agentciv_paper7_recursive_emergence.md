@@ -269,6 +269,8 @@ The **AgentCiv Simulation** provides civilisation instantiation with emergent dy
 
 An **extraction pipeline** maps structured civilisation events to Engine-compatible configuration parameters. This is a mechanical translation — pattern matching on structured data, not AI interpretation.
 
+The division of labour between tools is explicit: the Engine provides the directed arm of the recursive loop — configured teams given specific tasks under specified organisational structures. The Simulation provides the emergent arm — civilisational dynamics that produce the organisational forms to be extracted. The extraction pipeline bridges them, translating emergent civilisational observations into Engine-compatible configuration parameters. Each tool contributes what it was designed for: the Engine contributes structured team configuration, the Simulation contributes open-ended civilisational emergence.
+
 A **loop harness** connects the pipeline: team → civilisation → extraction → new team configs → new teams → new civilisations → loop. It tracks configurations, outcomes, and generational lineage across cycles.
 
 ### 10.2 A Primitive Run
