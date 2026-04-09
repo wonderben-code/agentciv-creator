@@ -1,7 +1,7 @@
 # Recursive Emergence: Self-Propagating Organisational Evolution Through Civilisational Generation
 
 **Mark E. Mala**
-April 2026
+4 April 2026
 
 ---
 

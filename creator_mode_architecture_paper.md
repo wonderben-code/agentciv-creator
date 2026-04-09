@@ -1,7 +1,7 @@
 # The Creator Mode Architecture: Autonomous Exploration, Recursive Nesting, and Civilisations as Cognitive Primitives
 
 **Mark E. Mala**
-April 2026
+6 April 2026
 
 ---
 
@@ -442,4 +442,4 @@ Mala, M. E. (2026k). Generative Coupling: The Structural Relationship Between Co
 
 *Correspondence: Mark E. Mala*
 
-*Date: April 2026*
+*Date: 6 April 2026*

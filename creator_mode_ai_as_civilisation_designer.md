@@ -3,7 +3,7 @@
 ## Autonomous Exploration of the Collective Machine Intelligence Possibility Space
 
 **Mark E. Mala**
-April 2026
+3 April 2026
 
 ---
 

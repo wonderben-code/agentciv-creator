@@ -3,7 +3,7 @@
 ## The Directed-Emergent Distinction as Structural Pattern
 
 **Mark E. Mala**
-April 2026
+4 April 2026
 
 ---
 
