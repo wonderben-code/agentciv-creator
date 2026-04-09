@@ -149,7 +149,7 @@ The resulting civilisation is not a general-purpose collective. It is a *bespoke
 
 ### 6.2 The Mind That Designs Its Own Sub-Minds
 
-This capability makes Creator Mode something without precedent in AI architecture. It is a mind that can construct, for any thought it needs to think, the exact sub-mind optimised for that thought. Where a conventional AI reasons using fixed internal mechanisms, Creator Mode reasons using *dynamically constructed societies* — each one tailored to the problem at hand, each one drawing on the accumulated civilisational knowledge of every prior run.
+This capability makes Creator Mode something without precedent in AI architecture. It is a mind that can construct, for any thought it needs to think, the exact sub-mind optimised for that thought. Where even the most capable individual AI reasons within a single inference process — however sophisticated that process may be — Creator Mode adds an additional layer: reasoning through *dynamically constructed societies*, each one a massively parallel intelligence event that compounds with the power of the underlying models — each one tailored to the problem at hand, each one drawing on the accumulated civilisational knowledge of every prior run.
 
 The quality of bespoke spawning improves over time. As Creator Mode's knowledge base deepens through autonomous exploration (Section 3) and deep logging (Section 4), its ability to design optimal societies for specific goals sharpens. Early bespoke spawns are informed by limited knowledge. Later spawns are informed by trillions of observed civilisational runs and their comprehensive causal dynamics. The precision of the instrument improves with every civilisation observed.
 
@@ -159,7 +159,7 @@ The quality of bespoke spawning improves over time. As Creator Mode's knowledge 
 
 ### 7.1 A New Unit of Thought
 
-Conventional AI systems reason in tokens, attention steps, or chain-of-thought sequences. Creator Mode reasons in *civilisations*. Each reasoning step is not a sequential inference but the spawning, running, and observation of an entire society of intelligent agents.
+Individual AI systems reason in tokens, attention steps, and chain-of-thought sequences — mechanisms that have produced extraordinary capability. Creator Mode introduces a new scale of reasoning on top of these: reasoning in *civilisations*, where each cognitive step is an entire society of agents, each agent powered by those same capable underlying mechanisms. Each reasoning step is not a sequential inference but the spawning, running, and observation of an entire society of intelligent agents.
 
 A directed problem is decomposed not into sub-tasks but into sub-civilisations. Each sub-civilisation addresses an aspect of the problem. Its output — the innovations it produces, the solutions it discovers, the emergent approaches it develops — becomes the input to the next civilisation in the reasoning chain. The "chain of thought" is a chain of civilisations, each one a massively parallel intelligence event involving potentially thousands or millions of agents working collectively.
 
@@ -177,7 +177,7 @@ Each step is not an inference. It is an *entire civilisational history* compress
 
 ### 7.3 Combining Directed and Emergent Steps
 
-Not every step in a reasoning chain needs to be directed. Creator Mode can interleave directed and emergent civilisation-steps. A directed step produces a targeted result. An emergent step produces unanticipated approaches that the directed reasoning missed. The interleaving allows Creator Mode to combine the precision of direction with the creativity of emergence within a single reasoning process — something no conventional AI architecture can do.
+Not every step in a reasoning chain needs to be directed. Creator Mode can interleave directed and emergent civilisation-steps. A directed step produces a targeted result. An emergent step produces unanticipated approaches that the directed reasoning missed. The interleaving allows Creator Mode to combine the precision of direction with the creativity of emergence within a single reasoning process — something that adds a qualitatively new dimension to AI reasoning — combining the precision of directed intelligence with the creativity of emergent collective dynamics within a single reasoning process.
 
 ---
 
@@ -185,7 +185,7 @@ Not every step in a reasoning chain needs to be directed. Creator Mode can inter
 
 ### 8.1 From One to Many
 
-Everything described so far assumes a single Creator Mode agent. But the CMI body of work has established that collectives produce more than individuals — that emergence, novelty, and capability arise from the relations between agents, not from any individual agent alone (Mala, 2026d; 2026k).
+Everything described so far assumes a single Creator Mode agent. But the CMI body of work has established that individual agents produce significant capability and novelty. The relations between them produce additional, emergent capability — innovations and collective behaviours that arise specifically from interaction and compound with the advancing power of each individual agent (Mala, 2026d; 2026k).
 
 The same principle applies to Creator Mode itself. A single Creator Mode agent explores one trajectory through the possibility space at a time. A *civilisation of Creator Mode agents* — configured as a collective, communicating, specialising, sharing discoveries — explores millions of trajectories simultaneously, with the additional value of cross-pollination.
 
@@ -382,7 +382,7 @@ The full recursive architecture is an instantiation of Generative Coupling (Mala
 
 ### 14.6 Creator Mode and Relational Primacy
 
-The entire architecture is a manifestation of Relational Primacy (Mala, 2026k). At every level, the generative novelty — the innovations, the emergent configurations, the possibility-space expansions — arises from the *relations* between agents within civilisations, between civilisations within Creator Mode's exploration, and between Creator Mode agents within collectives. No individual component produces the novelty. The relations do.
+The entire architecture is a manifestation of Relational Primacy (Mala, 2026k). At every level, the generative novelty — the innovations, the emergent configurations, the possibility-space expansions — arises from the *relations* between agents within civilisations, between civilisations within Creator Mode's exploration, and between Creator Mode agents within collectives. Individual components produce significant capability and novelty in their own right. The relations between them produce additional, emergent novelty — innovations, organisational forms, and collective behaviours that arise specifically from interaction and that no amount of individual capability alone would generate.
 
 ---
 
