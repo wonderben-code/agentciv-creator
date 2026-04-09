@@ -3,6 +3,8 @@
 **Mark E. Mala**
 4 April 2026
 
+**DOI:** [10.5281/zenodo.19479954](https://doi.org/10.5281/zenodo.19479954)
+
 ---
 
 ## Abstract
