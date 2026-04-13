@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 # ── Disk layout ──────────────────────────────────────────────────────────────
 CREATOR_HOME = Path.home() / ".agentciv-creator"
@@ -51,6 +52,29 @@ ALL_PRESETS = [
     "hackathon",
     "code-review",
 ]
+
+# ── Simulation conditions (all 11) ─────────────────────────────────────────
+SIM_CONDITIONS = [
+    "default",
+    "scarce",
+    "abundant",
+    "dense",
+    "sparse",
+    "cooperative",
+    "competitive",
+    "innovative",
+    "minimal",
+    "no_governance",
+    "no_innovation",
+]
+
+# ── Simulation override parameters (sweepable) ────────────────────────────
+SIM_SWEEP_PARAMS: dict[str, list[Any]] = {
+    "initial_agent_count": [4, 8, 12, 20],
+    "resource_max_per_tile": [0.3, 0.5, 0.7, 1.0],
+    "resource_regeneration_rate": [0.01, 0.03, 0.06, 0.1],
+    "grid_width": [20, 40, 60, 80],
+}
 
 # ── Organisational dimensions ────────────────────────────────────────────────
 DIMENSION_VALUES: dict[str, list[str]] = {

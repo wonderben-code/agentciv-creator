@@ -90,9 +90,10 @@ class RunConfig(BaseModel):
 
 
 class RunResult(BaseModel):
-    """Structured metrics from a single engine experiment run.
+    """Structured metrics from a single experiment run (engine or simulation).
 
     Maps directly to the RunResult dataclass in §9 of the product bible.
+    Extended with emergence fields for simulation runs.
     """
     # Identity
     id: str = ""
@@ -100,18 +101,27 @@ class RunResult(BaseModel):
     batch_id: str = ""
     run_index: int = 0
 
+    # Which arm produced this result
+    arm: Arm = Arm.DIRECTED
+
     # Configuration
     config: RunConfig
     agent_count: int
     model: str
     max_ticks: int
 
-    # Primary outcomes
+    # Primary outcomes (directed arm)
     quality_score: float = 0.0
     completion_rate: float = 0.0
     test_pass_rate: float | None = None
 
-    # Coordination metrics
+    # Primary outcomes (emergent arm)
+    emergence_score: float = 0.0
+    emergence_metrics: dict[str, Any] = Field(default_factory=dict)
+    milestones: list[str] = Field(default_factory=list)
+    chronicle_highlights: list[str] = Field(default_factory=list)
+
+    # Coordination metrics (directed arm)
     ticks_used: int = 0
     total_messages: int = 0
     total_broadcasts: int = 0
@@ -143,6 +153,13 @@ class RunResult(BaseModel):
     # Timestamps
     started: datetime = Field(default_factory=utcnow)
     completed: datetime | None = None
+
+    @property
+    def primary_score(self) -> float:
+        """Return the primary metric for this arm."""
+        if self.arm == Arm.EMERGENT:
+            return self.emergence_score
+        return self.quality_score
 
 
 # ── Statistical Evidence ─────────────────────────────────────────────────────

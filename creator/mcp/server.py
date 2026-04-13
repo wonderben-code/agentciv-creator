@@ -134,6 +134,8 @@ smarter with every campaign.
 ## Quick Start
 
 1. `creator_explore(question="What org works best for code review?", task="Build a REST API", agents=4)`
+   — arm defaults to "auto": Creator Mode analyses the goal and decides whether to use Engine (directed),
+   Simulation (emergent), or both (HYBRID) with transparent reasoning.
 2. Wait for campaign to run (check with `creator_status()`)
 3. `creator_knowledge(action="query", question="code review")` to retrieve findings
 4. `creator_knowledge(action="recommend", task_type="code_review")` for a ready-to-use config
@@ -242,15 +244,20 @@ async def _campaign_detail(
     # Build status report
     runs = store.list_run_results(campaign_id)
 
-    # Find current leader
+    # Find current leader (uses arm-appropriate metric)
     current_leader = None
     if runs:
-        best = max(runs, key=lambda r: r.quality_score)
-        current_leader = {
+        best = max(runs, key=lambda r: r.primary_score)
+        leader_data: dict[str, Any] = {
             "config": best.config.model_dump(),
-            "quality_score": best.quality_score,
-            "conflicts": best.merge_conflicts,
+            "arm": best.arm.value,
         }
+        if best.arm.value == "emergent":
+            leader_data["emergence_score"] = best.emergence_score
+        else:
+            leader_data["quality_score"] = best.quality_score
+            leader_data["conflicts"] = best.merge_conflicts
+        current_leader = leader_data
 
     result: dict[str, Any] = {
         "campaign_id": campaign.id,
@@ -421,7 +428,7 @@ async def _knowledge_hypotheses(store: KnowledgeStore, status: str | None) -> st
 async def creator_explore(
     question: str,
     task: str,
-    arm: str = "directed",
+    arm: str = "auto",
     strategy: str = "hypothesis",
     agents: int = 4,
     model: str = "claude-sonnet-4-6",
@@ -444,7 +451,7 @@ async def creator_explore(
     Args:
         question: The research question. E.g. "What org works best for code review?"
         task: What agents will do. Natural language or benchmark ID.
-        arm: "directed" (engine), "emergent" (simulation), or "both".
+        arm: "auto" (meta-reasoner decides), "directed", "emergent", or "both".
         strategy: "hypothesis" (default), "grid", "sweep", or "knowledge".
         agents: Agent count (fixed across campaign).
         model: Model for experiment agents.
@@ -492,7 +499,9 @@ async def creator_explore(
         }, campaign_id=campaign_id_for_session)
 
     # Phase 2: Execute if requested
-    if execute and arm == "directed":
+    # The resolved arm (after meta-reasoning) is in result["arm"]
+    resolved_arm = result["arm"]
+    if execute:
         campaign_id = result["campaign_id"]
         exec_result = await manager.run_campaign(
             campaign_id,

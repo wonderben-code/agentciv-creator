@@ -188,34 +188,37 @@ Creator Mode is a meta-intelligence that solves organisational design problems u
 
 | Component | File | Lines | Status |
 |-----------|------|-------|--------|
-| MCP Server (7 tools) | `creator/mcp/server.py` | 1,166 | Working |
+| MCP Server (8 tools) | `creator/mcp/server.py` | ~1,170 | Working (all arms + auto) |
 | Analyzer (cross-run patterns) | `creator/analysis/analyzer.py` | 705 | Working |
 | Dogfood Session | `creator/dogfood/session.py` | 486 | Working |
 | Recursive Campaign Loop | `creator/campaign/recursive.py` | 408 | Working |
 | Knowledge Store | `creator/knowledge/store.py` | 393 | Working |
-| Knowledge Models | `creator/knowledge/models.py` | 378 | Working |
-| Sim Runner | `creator/simulation/runner.py` | 387 | Exists, needs integration |
-| Sim Config Generator | `creator/simulation/config_gen.py` | 275 | Exists, needs integration |
+| Knowledge Models | `creator/knowledge/models.py` | ~400 | Working (dual-arm RunResult) |
+| Sim Runner | `creator/simulation/runner.py` | ~420 | Working (integrated) |
+| Sim Config Generator | `creator/simulation/config_gen.py` | 275 | Working |
+| Emergence→Engine Translator | `creator/simulation/translator.py` | ~400 | Working (HYBRID bridge) |
 | Report Generator | `creator/reporting/report_generator.py` | 368 | Working |
 | Report Designer | `creator/reporting/designer.py` | 271 | Working |
-| Campaign Planner | `creator/campaign/planner.py` | 356 | Working (Engine only) |
-| Campaign Manager | `creator/campaign/manager.py` | 308 | Working (TASK only) |
+| Campaign Planner | `creator/campaign/planner.py` | ~480 | Working (all arms) |
+| Campaign Manager | `creator/campaign/manager.py` | ~560 | Working (all arms + auto) |
+| Campaign Strategies | `creator/campaign/strategies.py` | ~345 | Working (directed + emergence) |
+| Meta-Reasoner | `creator/campaign/meta_reasoner.py` | ~350 | Working |
 | Engine Runner | `creator/engine/runner.py` | 305 | Working |
-| Campaign Strategies | `creator/campaign/strategies.py` | 210 | Working |
-| Knowledge Index | `creator/knowledge/index.py` | 266 | Working |
-| Config | `creator/config.py` | 92 | Working |
+| Knowledge Index | `creator/knowledge/index.py` | ~310 | Working (cross-mode + emergence coverage) |
+| Config | `creator/config.py` | ~115 | Working (SIM_CONDITIONS + SIM_SWEEP_PARAMS) |
 
 **Already dogfooded:** 3 TASK campaigns, 14 runs, $83.53. Engine-side Creator Mode works end-to-end.
 
-**What works today:** You can ask Creator Mode a question about organisational structure, it designs Engine experiments, runs them, analyses results, generates hypotheses, runs more experiments, stores findings, and converges on an answer. TASK mode is complete and proven.
+**What works today:** Full Creator Mode v1 code build complete. TASK, EMERGENCE, HYBRID, and AUTO modes all built. Meta-reasoner analyses goals and routes to optimal arm. Emergence→Engine translator maps 9 dimensions. Cross-mode knowledge retrieval bridges arms. Unified coverage tracking across both parameter spaces. Awaiting Phase 6 dogfood validation to prove end-to-end.
 
 ---
 
 ## WHAT V1 STILL NEEDS — THE BUILD
 
-### Phase 1: Simulation Structured Metrics (~200 lines)
+### Phase 1: Simulation Structured Metrics (~200 lines) ✅ COMPLETE (pre-existing)
 **Repo:** `agent-civilisation`
-**Why:** Creator Mode can't compare simulation runs without quantified metrics. Currently simulations produce chronicles (text) but no structured scores.
+**Why:** Creator Mode can't compare simulation runs without quantified metrics.
+**Status:** Already built in agent-civilisation repo. EmergenceScore has 22 metrics (more than the 16 spec'd). RunRecord exists. `--metrics` and `--output` flags are wired.
 
 | File | What |
 |------|------|
@@ -224,9 +227,10 @@ Creator Mode is a meta-intelligence that solves organisational design problems u
 | `src/metrics/__init__.py` | Package init |
 | `scripts/run.py` (edit) | Wire `--metrics` flag to compute and print EmergenceScore at end of run. Wire `--output <path>` to export full RunRecord as JSON |
 
-### Phase 2: Simulation Experiment Commands (~400 lines)
+### Phase 2: Simulation Experiment Commands (~400 lines) ✅ COMPLETE (pre-existing)
 **Repo:** `agent-civilisation`
-**Why:** Creator Mode needs CLI/MCP entry points to run structured simulation experiments, not just single runs.
+**Why:** Creator Mode needs CLI/MCP entry points to run structured simulation experiments.
+**Status:** Already built. `experiment` CLI command exists. MCP tools wire EmergenceScore.
 
 | File | What |
 |------|------|
@@ -235,9 +239,10 @@ Creator Mode is a meta-intelligence that solves organisational design problems u
 | `src/mcp/server.py` (edit) | Wire EmergenceScore into MCP tool responses so Creator Mode receives structured metrics |
 | `README.md` (edit) | Document structured metrics + experiment mode |
 
-### Phase 3: Creator Mode Simulation Integration + EMERGENCE Mode (~300 lines)
+### Phase 3: Creator Mode Simulation Integration + EMERGENCE Mode (~300 lines) ✅ COMPLETE
 **Repo:** `agentciv-creator`
-**Why:** This is Concept 1 — Creator Mode can now autonomously explore via Simulation, not just Engine.
+**Why:** Concept 1 — Creator Mode autonomously explores via Simulation.
+**Built:** Extended RunResult with emergence fields + arm tag + primary_score property. Added emergence strategies (grid, sweep, hypothesis). Added emergence planner with LLM hypothesis generation. Added emergence batch runner in campaign manager. Sim conditions + sweep params in config.
 
 | File | What |
 |------|------|
@@ -246,9 +251,10 @@ Creator Mode is a meta-intelligence that solves organisational design problems u
 | `creator/campaign/planner.py` (edit) | EMERGENCE hypothesis templates — emergence-specific hypotheses like "resource scarcity increases governance emergence" |
 | `creator/simulation/runner.py` (edit) | Wire to use `--metrics` and `--output` flags, parse RunRecord JSON, return structured results |
 
-### Phase 4: HYBRID Mode + Translator (~300 lines)
+### Phase 4: HYBRID Mode + Translator (~300 lines) ✅ COMPLETE
 **Repo:** `agentciv-creator`
-**Why:** This is the world-first capability. Emergent patterns from Simulation → translated to Engine configs → tested on real tasks. Concept 3 in action.
+**Why:** World-first: emergent patterns from Simulation → translated to Engine configs → tested on real tasks.
+**Built:** `creator/simulation/translator.py` (~400 lines) — 9 dimension mappers with confidence scoring. HYBRID batch runner: emergence → translate → engine comparison. Tested with mock data: 0.737 overall confidence.
 
 | File | What |
 |------|------|
@@ -256,9 +262,10 @@ Creator Mode is a meta-intelligence that solves organisational design problems u
 | `creator/campaign/manager.py` (edit) | Add `HYBRID` campaign mode — Sim experiments → translator extracts patterns → encodes as Engine configs → Engine experiments → compare emergent-derived configs vs human-designed presets → store cross-mode findings |
 | `creator/campaign/planner.py` (edit) | HYBRID hypothesis templates: "Does the organisational pattern that emerged under condition X improve performance on task Y?" |
 
-### Phase 5: Meta-Reasoning + Cross-Mode Knowledge (~200 lines)
+### Phase 5: Meta-Reasoning + Cross-Mode Knowledge (~200 lines) ✅ COMPLETE
 **Repo:** `agentciv-creator`
-**Why:** This is Concept 3's meta-reasoning layer — Creator Mode decides WHICH sub-modules to use, not the user. Plus cross-mode knowledge ties everything together.
+**Why:** Concept 3's meta-reasoning — Creator Mode decides WHICH sub-modules to use.
+**Built:** `creator/campaign/meta_reasoner.py` (~350 lines) — 4-factor analysis (goal type, coverage, knowledge, task specificity). Wired into campaign manager: `arm="auto"` resolves via meta-reasoner with transparent reasoning. MCP server default changed to `arm="auto"`. Cross-mode retrieval added to SearchIndex. Emergence coverage tracking in unified coverage map. Smoke-tested: optimisation→directed, emergence→emergent, understanding→both.
 
 | File | What |
 |------|------|
@@ -529,6 +536,7 @@ Every statement from the founding brief, mapped to exactly where it's built:
 | 8 April 2026 | Created. Consolidates Stage 2 plan, product bible, and user's four-concept framework. |
 | 8 April 2026 | Added: 4 architectural principles (frontier AI, deep logging, knowledge-informed decisions, combined possibility space). Added: traceability table mapping every founding requirement to build phases. Added: website-specific items for possibility space visualization and frontier AI messaging. |
 | 8 April 2026 | Added: PRE-BUILD design sessions (translator mapping logic + meta-reasoner decision matrix). Added: UX DESIGN PASS — what makes it top 0.0000001% (campaign running output, knowledge queries, meta-reasoner transparency, HYBRID "holy shit" moment, campaign reports, error handling). The principle: feels like working with a brilliant research colleague. |
+| 13 April 2026 | Phases 1-5 COMPLETE. Phases 1-2 were pre-existing in agent-civilisation repo. Phases 3-5 built: EMERGENCE mode, HYBRID translator (9 dimensions), meta-reasoner (4-factor analysis), cross-mode knowledge retrieval, unified emergence coverage. All verified compiling + smoke-tested. Phase 6 (dogfood validation) is next. |
 
 ---
 

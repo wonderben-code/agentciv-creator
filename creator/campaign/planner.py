@@ -10,9 +10,10 @@ import json
 import logging
 from typing import Any
 
-from ..config import ALL_PRESETS, DIMENSION_VALUES
+from ..config import ALL_PRESETS, DIMENSION_VALUES, SIM_CONDITIONS, SIM_SWEEP_PARAMS
 from ..knowledge.index import SearchIndex
 from ..knowledge.models import (
+    Arm,
     Batch,
     BatchStatus,
     Hypothesis,
@@ -22,7 +23,15 @@ from ..knowledge.models import (
     TestDesign,
 )
 from ..knowledge.store import KnowledgeStore
-from .strategies import plan_from_hypotheses, plan_grid, plan_knowledge, plan_sweep
+from .strategies import (
+    plan_emergence_from_hypotheses,
+    plan_emergence_grid,
+    plan_emergence_sweep,
+    plan_from_hypotheses,
+    plan_grid,
+    plan_knowledge,
+    plan_sweep,
+)
 
 log = logging.getLogger(__name__)
 
@@ -292,6 +301,215 @@ def _heuristic_hypotheses(
     return hypotheses
 
 
+# ── Emergence Hypothesis Engine ──────────────────────────────────────────────
+
+EMERGENCE_SYSTEM_PROMPT = """\
+You are a research scientist designing emergence experiments for AI civilisation simulations.
+
+You will be given:
+- A research question about emergent behaviour in AI civilisations
+- Constraints (agent count, ticks, model)
+- Any existing knowledge from prior experiments
+
+The simulation creates a world where AI agents with Maslow-like drives interact, communicate, \
+build structures, discover innovations, form social bonds, propose governance rules, and develop \
+specialisations. Your job: generate 3-5 testable hypotheses about what environmental conditions \
+produce the most interesting emergent behaviour.
+
+Each hypothesis must specify:
+- statement: The prediction (clear, falsifiable)
+- independent_variable: Which environmental parameter to vary
+- treatment: The condition you expect to produce more emergence
+- control: The baseline comparison
+- outcome_metric: What to measure (emergence_score, governance, cooperation, innovation, etc.)
+- expected_direction: "treatment > control" or "treatment < control"
+- rationale: WHY you expect this (1-2 sentences)
+- priority: "high", "medium", or "low"
+- tags: relevant keywords
+
+Available simulation conditions (named environments):
+{conditions}
+
+Available sweep parameters (continuous variables):
+{sweep_params}
+
+Respond with a JSON array of hypotheses. Nothing else — no markdown, no explanation.
+
+Example:
+[
+  {{
+    "statement": "Resource scarcity increases governance emergence as agents need rules to manage shared resources",
+    "independent_variable": "condition",
+    "treatment": "scarce",
+    "control": "abundant",
+    "outcome_metric": "emergence_score",
+    "expected_direction": "treatment > control",
+    "rationale": "Scarcity creates coordination pressure that incentivises collective rule-making",
+    "priority": "high",
+    "tags": ["scarcity", "governance", "cooperation"]
+  }}
+]
+"""
+
+EMERGENCE_USER_TEMPLATE = """\
+Research question: {question}
+
+Constraints:
+- Agent count: {agents}
+- Ticks: {ticks}
+- Model: {model}
+
+{knowledge_context}
+
+Generate 3-5 testable hypotheses about emergent behaviour under different conditions."""
+
+
+async def generate_emergence_hypotheses(
+    question: str,
+    agents: int,
+    model: str,
+    ticks: int,
+    store: KnowledgeStore,
+    search: SearchIndex,
+    session_manager: Any = None,
+    campaign_id: str = "",
+) -> list[Hypothesis]:
+    """Use LLM to generate emergence-specific hypotheses.
+
+    Falls back to heuristic hypotheses if the API call fails.
+    """
+    # Gather existing knowledge
+    existing = search.query_findings(question, max_results=5)
+    knowledge_lines: list[str] = []
+    if existing:
+        knowledge_lines.append("Existing knowledge from prior experiments:")
+        for r in existing:
+            knowledge_lines.append(f"  - {r.finding.statement} (confidence: {r.finding.confidence})")
+    else:
+        knowledge_lines.append("No prior experiments — this is a fresh exploration.")
+
+    knowledge_context = "\n".join(knowledge_lines)
+
+    conditions_str = ", ".join(SIM_CONDITIONS)
+    sweep_str = "\n".join(f"  {p}: {v}" for p, v in SIM_SWEEP_PARAMS.items())
+
+    system = EMERGENCE_SYSTEM_PROMPT.format(
+        conditions=conditions_str, sweep_params=sweep_str,
+    )
+    user = EMERGENCE_USER_TEMPLATE.format(
+        question=question, agents=agents, ticks=ticks,
+        model=model, knowledge_context=knowledge_context,
+    )
+
+    try:
+        import time as _time
+
+        import anthropic
+        client = anthropic.AsyncAnthropic()
+        t0 = _time.monotonic()
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        duration_ms = (_time.monotonic() - t0) * 1000
+
+        raw = response.content[0].text.strip()
+
+        if session_manager is not None:
+            input_tok = getattr(response.usage, "input_tokens", 0)
+            output_tok = getattr(response.usage, "output_tokens", 0)
+            session_manager.capture_llm(
+                purpose="emergence_hypothesis_generation",
+                model="claude-sonnet-4-6",
+                system_prompt=system, user_prompt=user,
+                raw_response=raw,
+                input_tokens=input_tok, output_tokens=output_tok,
+                duration_ms=duration_ms, campaign_id=campaign_id,
+            )
+            session_manager.track_cost(
+                source="emergence_hypothesis_engine",
+                campaign_id=campaign_id,
+                input_tokens=input_tok, output_tokens=output_tok,
+            )
+
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+        hypotheses_data = json.loads(raw)
+        return _parse_hypotheses(hypotheses_data, store)
+
+    except Exception as e:
+        log.warning("LLM emergence hypothesis generation failed (%s), using heuristics", e)
+        return _heuristic_emergence_hypotheses(question, agents, store)
+
+
+def _heuristic_emergence_hypotheses(
+    question: str,
+    agents: int,
+    store: KnowledgeStore,
+) -> list[Hypothesis]:
+    """Generate basic emergence hypotheses when LLM is unavailable."""
+    hypotheses: list[Hypothesis] = []
+
+    # H1: Scarcity drives governance
+    h1 = Hypothesis(
+        id=store.next_hypothesis_id(),
+        statement="Resource scarcity increases governance emergence",
+        status=HypothesisStatus.UNTESTED,
+        test_design=TestDesign(
+            independent_variable="condition",
+            treatment="scarce",
+            control="abundant",
+            outcome_metric="emergence_score",
+            expected_direction="treatment > control",
+        ),
+        priority=HypothesisPriority.HIGH,
+        tags=["scarcity", "governance", "emergence"],
+    )
+    store.save_hypothesis(h1)
+    hypotheses.append(h1)
+
+    # H2: Density increases social structure
+    h2 = Hypothesis(
+        id=store.next_hypothesis_id(),
+        statement="High population density accelerates social structure formation",
+        status=HypothesisStatus.UNTESTED,
+        test_design=TestDesign(
+            independent_variable="condition",
+            treatment="dense",
+            control="sparse",
+            outcome_metric="emergence_score",
+            expected_direction="treatment > control",
+        ),
+        priority=HypothesisPriority.HIGH,
+        tags=["density", "social_structure", "emergence"],
+    )
+    store.save_hypothesis(h2)
+    hypotheses.append(h2)
+
+    # H3: Innovation features produce richer emergence
+    h3 = Hypothesis(
+        id=store.next_hypothesis_id(),
+        statement="Enabling all innovation features produces higher composite emergence",
+        status=HypothesisStatus.UNTESTED,
+        test_design=TestDesign(
+            independent_variable="condition",
+            treatment="innovative",
+            control="default",
+            outcome_metric="emergence_score",
+            expected_direction="treatment > control",
+        ),
+        priority=HypothesisPriority.MEDIUM,
+        tags=["innovation", "emergence"],
+    )
+    store.save_hypothesis(h3)
+    hypotheses.append(h3)
+
+    return hypotheses
+
+
 # ── Plan Generation ──────────────────────────────────────────────────────────
 
 async def generate_plan(
@@ -307,36 +525,57 @@ async def generate_plan(
     focus_dimensions: list[str] | None,
     store: KnowledgeStore,
     search: SearchIndex,
+    arm: Arm = Arm.DIRECTED,
 ) -> tuple[Batch, list[Hypothesis], str]:
     """Generate a batch plan using the specified strategy.
+
+    Dispatches to directed (Engine) or emergent (Simulation) strategies
+    based on the campaign arm.
 
     Returns (batch, hypotheses, message).
     """
     hypotheses: list[Hypothesis] = []
 
-    if strategy == Strategy.GRID:
-        configs, rationale = plan_grid(max_runs, runs_per_config, focus_presets)
-
-    elif strategy == Strategy.SWEEP:
-        base = focus_presets[0] if focus_presets else "collaborative"
-        configs, rationale = plan_sweep(base, max_runs, runs_per_config, focus_dimensions)
-
-    elif strategy == Strategy.HYPOTHESIS:
-        hypotheses = await generate_hypotheses(
-            question, task, agents, model, max_ticks, store, search,
+    if arm == Arm.EMERGENT:
+        # Emergence-specific planning
+        configs, rationale, hypotheses = await _plan_emergence(
+            question=question,
+            strategy=strategy,
+            agents=agents,
+            model=model,
+            ticks=max_ticks,
+            max_runs=max_runs,
+            runs_per_config=runs_per_config,
+            focus_conditions=focus_presets,
+            focus_params=focus_dimensions,
+            store=store,
+            search=search,
         )
-        configs, rationale = plan_from_hypotheses(
-            hypotheses, max_runs, runs_per_config, focus_presets,
-        )
-
-    elif strategy == Strategy.KNOWLEDGE:
-        configs, gap_hypotheses, rationale = plan_knowledge(
-            store, search, question, max_runs, runs_per_config, focus_presets,
-        )
-        hypotheses = gap_hypotheses
-
     else:
-        configs, rationale = plan_grid(max_runs, runs_per_config, focus_presets)
+        # Directed (Engine) planning — existing logic
+        if strategy == Strategy.GRID:
+            configs, rationale = plan_grid(max_runs, runs_per_config, focus_presets)
+
+        elif strategy == Strategy.SWEEP:
+            base = focus_presets[0] if focus_presets else "collaborative"
+            configs, rationale = plan_sweep(base, max_runs, runs_per_config, focus_dimensions)
+
+        elif strategy == Strategy.HYPOTHESIS:
+            hypotheses = await generate_hypotheses(
+                question, task, agents, model, max_ticks, store, search,
+            )
+            configs, rationale = plan_from_hypotheses(
+                hypotheses, max_runs, runs_per_config, focus_presets,
+            )
+
+        elif strategy == Strategy.KNOWLEDGE:
+            configs, gap_hypotheses, rationale = plan_knowledge(
+                store, search, question, max_runs, runs_per_config, focus_presets,
+            )
+            hypotheses = gap_hypotheses
+
+        else:
+            configs, rationale = plan_grid(max_runs, runs_per_config, focus_presets)
 
     batch = Batch(
         id="B001",
@@ -348,9 +587,48 @@ async def generate_plan(
         rationale=rationale,
     )
 
+    arm_label = "emergence" if arm == Arm.EMERGENT else "directed"
     message = (
-        f"Batch 1 planned: {len(configs)} configs × {runs_per_config} runs = "
+        f"Batch 1 planned ({arm_label}): {len(configs)} configs × {runs_per_config} runs = "
         f"{batch.total_runs} experiments. Strategy: {strategy.value}."
     )
 
     return batch, hypotheses, message
+
+
+async def _plan_emergence(
+    question: str,
+    strategy: Strategy,
+    agents: int,
+    model: str,
+    ticks: int,
+    max_runs: int,
+    runs_per_config: int,
+    focus_conditions: list[str] | None,
+    focus_params: list[str] | None,
+    store: KnowledgeStore,
+    search: SearchIndex,
+) -> tuple[list[RunConfig], str, list[Hypothesis]]:
+    """Generate an emergence experiment plan. Returns (configs, rationale, hypotheses)."""
+    hypotheses: list[Hypothesis] = []
+
+    if strategy == Strategy.GRID:
+        configs, rationale = plan_emergence_grid(max_runs, runs_per_config, focus_conditions)
+
+    elif strategy == Strategy.SWEEP:
+        base = focus_conditions[0] if focus_conditions else "default"
+        configs, rationale = plan_emergence_sweep(base, max_runs, runs_per_config, focus_params)
+
+    elif strategy == Strategy.HYPOTHESIS:
+        hypotheses = await generate_emergence_hypotheses(
+            question, agents, model, ticks, store, search,
+        )
+        configs, rationale = plan_emergence_from_hypotheses(
+            hypotheses, max_runs, runs_per_config, focus_conditions,
+        )
+
+    else:
+        # Default to grid for emergence
+        configs, rationale = plan_emergence_grid(max_runs, runs_per_config, focus_conditions)
+
+    return configs, rationale, hypotheses
