@@ -9,8 +9,10 @@ An AI system that orchestrates the [AgentCiv Engine](https://github.com/wonderbe
 ## Install
 
 ```bash
-pip install git+https://github.com/wonderben-code/agentciv-creator.git
+pip install agentciv-creator
 ```
+
+> **macOS:** use `pip3 install agentciv-creator` if `pip` is not found.
 
 ## Use with Claude Code (or any MCP client)
 
